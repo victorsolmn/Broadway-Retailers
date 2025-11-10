@@ -31,10 +31,10 @@ const productSchema = z.object({
   hsn: z.string().optional(),
   price: z.number().min(0, 'Price must be positive'),
   mrp: z.number().min(0, 'MRP must be positive'),
-  taxRate: z.number().min(0).max(100).default(18),
-  stock: z.number().int().min(0, 'Stock must be positive').default(0),
+  taxRate: z.number().min(0).max(100).optional(),
+  stock: z.number().int().min(0, 'Stock must be positive').optional(),
   weight: z.number().positive('Weight must be positive').optional(),
-  originCountry: z.string().default('India'),
+  originCountry: z.string().optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -107,10 +107,18 @@ export default function CatalogPage() {
       const url = editingProduct ? `/api/products/${editingProduct.id}` : '/api/products';
       const method = editingProduct ? 'PATCH' : 'POST';
 
+      // Ensure defaults for optional fields
+      const payload = {
+        ...data,
+        taxRate: data.taxRate ?? 18,
+        stock: data.stock ?? 0,
+        originCountry: data.originCountry ?? 'India',
+      };
+
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
