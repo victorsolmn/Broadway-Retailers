@@ -18,7 +18,7 @@ async function main() {
     console.log('Creating demo seller account...');
 
     // Create seller user
-    seller = await prisma.user.create({
+    const newSeller = await prisma.user.create({
       data: {
         email: 'seller@demo.local',
         name: 'Demo Seller',
@@ -30,7 +30,7 @@ async function main() {
     // Create seller profile
     const profile = await prisma.sellerProfile.create({
       data: {
-        userId: seller.id,
+        userId: newSeller.id,
         fullName: 'Demo Seller',
         phone: '+919876543210',
         brandName: 'Demo Brand',
@@ -50,7 +50,7 @@ async function main() {
     // Create application
     const application = await prisma.sellerApplication.create({
       data: {
-        userId: seller.id,
+        userId: newSeller.id,
         profileId: profile.id,
         status: 'approved',
         timeline: JSON.stringify([
@@ -62,7 +62,7 @@ async function main() {
     // Create seller account
     await prisma.sellerAccount.create({
       data: {
-        userId: seller.id,
+        userId: newSeller.id,
         certificationBadge: true,
         features: JSON.stringify({
           rtoShield: { addressValidation: true, codOtp: true, prepaidNudge: true },
@@ -73,7 +73,7 @@ async function main() {
     // Create checklist
     await prisma.onboardingChecklist.create({
       data: {
-        userId: seller.id,
+        userId: newSeller.id,
         items: JSON.stringify([
           { key: 'add_product', status: 'pending', completedAt: null },
           { key: 'add_finance', status: 'pending', completedAt: null },
@@ -84,6 +84,15 @@ async function main() {
         ]),
       },
     });
+
+    // Refetch seller with includes
+    seller = await prisma.user.findUnique({
+      where: { id: newSeller.id },
+      include: {
+        account: true,
+        products: true,
+      },
+    }) as NonNullable<typeof seller>;
 
     console.log('✅ Demo seller account created!\n');
   } else {
