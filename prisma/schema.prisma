@@ -1,0 +1,367 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  seller
+  admin
+}
+
+enum ApplicationStatus {
+  draft
+  submitted
+  in_review
+  needs_clarification
+  clarification_submitted
+  approved
+  rejected
+}
+
+enum MessageFrom {
+  admin
+  system
+  seller
+}
+
+enum TicketStatus {
+  open
+  pending
+  closed
+}
+
+enum ProductStatus {
+  draft
+  ready
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(seller)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       SellerProfile?
+  application   SellerApplication?
+  account       SellerAccount?
+  products      Product[]
+  supportTickets SupportTicket[]
+  payoutMethods PayoutMethod[]
+  settlements   Settlement[]
+  addresses     Address[]
+  checklist     OnboardingChecklist?
+  sentMessages  AppMessage[]
+  analytics     AnalyticsEvent[]
+  notificationPreference NotificationPreference?
+  apiKeys       ApiKey[]
+
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+  @@map("verification_tokens")
+}
+
+model SellerProfile {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName          String
+  phone             String
+  brandName         String
+  category          String
+  availabilityStage String
+
+  gstAvailable      Boolean
+  gstin             String?
+  legalName         String?
+  pan               String?
+
+  companyName       String?
+  cin               String?
+  website           String?
+
+  addressLine1      String?
+  addressLine2      String?
+  city              String?
+  state             String?
+  pincode           String?
+
+  attachments       String?  // JSON array of file paths
+  additionalInfo    String?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  application       SellerApplication?
+
+  @@map("seller_profiles")
+}
+
+model SellerApplication {
+  id          String            @id @default(cuid())
+  userId      String            @unique
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId   String            @unique
+  profile     SellerProfile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  status      ApplicationStatus @default(submitted)
+  reviewerId  String?
+  timeline    String?           // JSON array of timeline events
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  messages    AppMessage[]
+  supportTickets SupportTicket[]
+
+  @@map("seller_applications")
+}
+
+model AppMessage {
+  id            String   @id @default(cuid())
+  applicationId String
+  application   SellerApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  fromType      MessageFrom
+  fromUserId    String?
+  fromUser      User?   @relation(fields: [fromUserId], references: [id], onDelete: SetNull)
+
+  body          String
+  attachments   String?  // JSON array
+
+  createdAt     DateTime @default(now())
+
+  @@map("app_messages")
+}
+
+model SupportTicket {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   SellerApplication? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  subject       String
+  message       String
+  status        TicketStatus @default(open)
+
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@map("support_tickets")
+}
+
+model SellerAccount {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  certificationBadge Boolean  @default(true)
+  approvedAt         DateTime @default(now())
+  features           String?  // JSON object for RTO Shield, etc.
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("seller_accounts")
+}
+
+model OnboardingChecklist {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items     String   // JSON array of {key, status, completedAt}
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("onboarding_checklists")
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title           String
+  description     String?
+  category        String
+  brand           String
+  sku             String        @unique
+  barcode         String?
+  hsn             String?
+
+  price           Float
+  mrp             Float
+  taxRate         Float         @default(18.0)
+  stock           Int           @default(0)
+
+  weight          Float?
+  dimensions      String?       // JSON {length, width, height}
+  originCountry   String        @default("India")
+
+  images          String?       // JSON array
+  variants        String?       // JSON array
+  care            String?       // JSON object
+  warranty        String?       // JSON object
+
+  status          ProductStatus @default(draft)
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@map("products")
+}
+
+model PayoutMethod {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type          String   @default("bank")
+  details       String   // JSON object {accountHolder, accountNumber, ifsc, bankName}
+  verified      Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("payout_methods")
+}
+
+model Settlement {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount            Float
+  fees              String   // JSON object {commission, payment, shipping}
+  periodStart       DateTime
+  periodEnd         DateTime
+  expectedPayoutDate DateTime
+  status            String   @default("pending")
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("settlements")
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type      String   // "pickup" or "return"
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  city      String
+  state     String
+  pincode   String
+  landmark  String?
+
+  isDefault Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("addresses")
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  eventName String
+  eventData String?  // JSON object
+
+  createdAt DateTime @default(now())
+
+  @@map("analytics_events")
+}
+
+model NotificationPreference {
+  id             String  @id @default(cuid())
+  userId         String  @unique
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  email          Boolean @default(true)
+  orderUpdates   Boolean @default(true)
+  paymentAlerts  Boolean @default(true)
+  productAlerts  Boolean @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("notification_preferences")
+}
+
+model ApiKey {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  key       String   @unique
+
+  createdAt DateTime @default(now())
+
+  @@map("api_keys")
+}
