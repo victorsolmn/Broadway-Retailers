@@ -6,8 +6,9 @@ import { trackEvent, EVENTS } from '@/lib/analytics';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await auth();
 
@@ -16,7 +17,7 @@ export async function GET(
     }
 
     const application = await prisma.sellerApplication.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         profile: true,
         user: true,
@@ -42,8 +43,9 @@ export async function GET(
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await auth();
 
@@ -55,7 +57,7 @@ export async function PATCH(
     const { action, message } = body;
 
     const application = await prisma.sellerApplication.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         profile: true,
         user: true,
@@ -71,7 +73,7 @@ export async function PATCH(
     if (action === 'approve') {
       // Update application status
       await prisma.sellerApplication.update({
-        where: { id: params.id },
+        where: { id: id },
         data: {
           status: 'approved',
           reviewerId: session.user.id,
@@ -121,7 +123,7 @@ export async function PATCH(
       if (message) {
         await prisma.appMessage.create({
           data: {
-            applicationId: params.id,
+            applicationId: id,
             fromType: 'admin',
             fromUserId: session.user.id,
             body: message,
@@ -134,11 +136,11 @@ export async function PATCH(
       await sendEmail(emailTemplates.applicationApproved(application.user.email, dashboardUrl));
 
       // Track event
-      await trackEvent(EVENTS.APPLICATION_APPROVED, { applicationId: params.id }, application.userId);
+      await trackEvent(EVENTS.APPLICATION_APPROVED, { applicationId: id }, application.userId);
 
     } else if (action === 'reject') {
       await prisma.sellerApplication.update({
-        where: { id: params.id },
+        where: { id: id },
         data: {
           status: 'rejected',
           reviewerId: session.user.id,
@@ -156,7 +158,7 @@ export async function PATCH(
       // Send rejection message
       await prisma.appMessage.create({
         data: {
-          applicationId: params.id,
+          applicationId: id,
           fromType: 'admin',
           fromUserId: session.user.id,
           body: message,
@@ -168,7 +170,7 @@ export async function PATCH(
 
     } else if (action === 'clarify') {
       await prisma.sellerApplication.update({
-        where: { id: params.id },
+        where: { id: id },
         data: {
           status: 'needs_clarification',
           reviewerId: session.user.id,
@@ -186,7 +188,7 @@ export async function PATCH(
       // Send clarification message
       await prisma.appMessage.create({
         data: {
-          applicationId: params.id,
+          applicationId: id,
           fromType: 'admin',
           fromUserId: session.user.id,
           body: message,
@@ -198,7 +200,7 @@ export async function PATCH(
       await sendEmail(emailTemplates.clarificationNeeded(application.user.email, message, statusUrl));
 
       // Track event
-      await trackEvent(EVENTS.CLARIFICATION_REQUESTED, { applicationId: params.id }, application.userId);
+      await trackEvent(EVENTS.CLARIFICATION_REQUESTED, { applicationId: id }, application.userId);
     }
 
     return NextResponse.json({ success: true });

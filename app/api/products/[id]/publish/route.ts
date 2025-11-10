@@ -5,8 +5,9 @@ import { trackEvent, EVENTS } from '@/lib/analytics';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const session = await auth();
     if (!session?.user) {
@@ -15,7 +16,7 @@ export async function PATCH(
 
     // Verify product belongs to user
     const existing = await prisma.product.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!existing || existing.userId !== session.user.id) {
@@ -23,7 +24,7 @@ export async function PATCH(
     }
 
     const product = await prisma.product.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { status: 'ready' },
     });
 
